@@ -2,10 +2,11 @@
 #define comms_h
 
 #ifdef CONTROL_BOARD
-    #include <DHT_U.h>
     #include <OneWire.h>
     #include <DallasTemperature.h>
     #include <Adafruit_NeoPixel.h>
+    #include <Adafruit_BME280.h>
+    #include "lights.hpp"
 #endif
 
 #ifdef COMM_BOARD
@@ -18,32 +19,35 @@
     #define mqtt_user "homeassistant"
     #define mqtt_pass "ZunkoCar"
 
-    #define atemp_topic "home/pool/atemp"
-    #define ahum_topic "home/pool/ahum"
-    #define wtemp_topic "home/pool/wtemp"
+    #define atemp_topic (char *)"home/pool/atemp"
+    #define ahum_topic (char *)"home/pool/ahum"
+    #define apres_topic (char *)"home/pool/apres"
+    #define wtemp_topic (char *)"home/pool/wtemp"
 
-    #define filter_topic "home/pool/filter"
-    #define filter_set_topic "home/pool/filter/set"
+    #define alt_topic (char *)"home/pool/alt"
 
-    #define light_topic "home/pool/light"
-    #define light_set_topic "home/pool/light/set"
+    #define filter_topic (char *)"home/pool/filter"
+    #define filter_set_topic (char *)"home/pool/filter/set"
 
-    #define light_brightness_topic "home/pool/light/brightness"
-    #define light_brightness_set_topic "home/pool/light/brightness/set"
+    #define light_topic (char *)"home/pool/light"
+    #define light_mode_topic (char *)"home/pool/light/mode"
+    #define light_set_topic (char *)"home/pool/light/set"
+
+    #define light_brightness_topic (char *)"home/pool/light/brightness"
+    #define light_brightness_set_topic (char *)"home/pool/light/brightness/set"
 #endif
 
 // Hardware stuff
 #define LIGHTPIN        6
-#define LEDS            300
+#define LEDS            295
 
 #define RELAY0PIN       7
 #define RELAY1PIN       8
 #define RELAY2PIN       9
 
-#define AIRPIN          10
-#define WATERPIN        11
+#define WATERPIN        10
 
-#define AIRTYPE         DHT22
+#define SEALEVELPRESSURE_HPA (1013.25)
 
 #define ON 1
 #define OFF 0
@@ -61,7 +65,8 @@
 #define MAX_COUNT 254
 #define NUM_RELAYS 3
 
-#define COMM_LED 0
+#define COMM_LED D0
+#define MQTT_LED D1
 
 class Comms {
 public:
@@ -82,7 +87,9 @@ public:
 
     void getAirTemperature();
     void getAirHumidity();
+    void getAirPressure();
     void getWaterTemperature();
+    void getAltitude();
 
     void setPoolFilter(bool state);
     void setPoolLight(bool state);
@@ -98,10 +105,10 @@ private:
 
 #ifdef CONTROL_BOARD
     int relays[3];
-    DHT_Unified *airSensor;
     OneWire *oneWire;
     DallasTemperature *waterSensor;
-    Adafruit_NeoPixel *lightStrip;
+    NeoPatterns *lightStrip;
+    Adafruit_BME280 *airSensor;
 
     int reportRelayState(byte relay);
     int toggleRelay(byte relay);
@@ -110,8 +117,12 @@ private:
 
     void processCommand();
     void reportAirTemperature();
-    void reportWaterTemperature();
     void reportAirHumidity();
+    void reportAirPressure();
+    void reportAltitude();
+    void reportWaterTemperature();
+
+    void setLightMode(int mode);
 
     void resetStates();
 #endif
@@ -124,7 +135,9 @@ private:
     void processData();
     void handleAirTemperature(char *buf);
     void handleAirHumidity(char *buf);
+    void handleAirPressure(char *buf);
     void handleWaterTemperature(char *buf);
+    void handleAltitude(char *buf);
 
 #endif
 };

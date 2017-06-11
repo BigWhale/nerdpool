@@ -11,6 +11,9 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <Adafruit_NeoPixel.h>
+#include <Wire.h>
+#include <SPI.h>
+#include "lights.hpp"
 #endif
 
 #ifdef COMM_BOARD
@@ -20,16 +23,15 @@
 
 Comms::Comms() {
 #ifdef CONTROL_BOARD
-    airSensor = new DHT_Unified(AIRPIN, AIRTYPE);
+    airSensor = new Adafruit_BME280;
     oneWire = new OneWire(WATERPIN);
     waterSensor = new DallasTemperature(oneWire);
-    lightStrip = new Adafruit_NeoPixel(LEDS, LIGHTPIN, NEO_GRB + NEO_KHZ800);
+    lightStrip = new NeoPatterns(LEDS, LIGHTPIN, NEO_GRB + NEO_KHZ800, NULL);
 
     airSensor->begin();
     waterSensor->begin();
 
     lightStrip->begin();
-    lightStrip->setBrightness(190);
     lightStrip->show();
 
     relays[0] = RELAY0PIN;
@@ -48,6 +50,9 @@ Comms::Comms() {
 }
 
 void Comms::readCommand() {
+#ifdef CONTROL_BOARD
+    lightStrip->Update();
+#endif
     while (Serial.available() > 0) {
         unsigned char inByte = Serial.read();
 
@@ -115,6 +120,7 @@ void Comms::resetStates() {
 
 void Comms::processCommand() {
     int relay;
+    int light_mode;
     bool state;
     switch (buffer[0]) {
         // Relay commands
@@ -139,6 +145,12 @@ void Comms::processCommand() {
         case 'A':       // Report air temperature
             reportAirTemperature();
             break;
+        case 'P':       // Report air pressure
+            reportAirPressure();
+            break;
+        case 'G':       // Report altitude
+            reportAltitude();
+            break;
         case 'W':       // Report water tmperature
             reportWaterTemperature();
             break;
@@ -154,6 +166,7 @@ void Comms::processCommand() {
         // Lights
         case 'L':                           // Light mode control
             if (buffer[1] == 'W') {         // Turn on full white
+                lightStrip->ActivePattern = NONE;
                 lightWhite();
             } else if (buffer[1] == 'B') {  // Set brigthness
                 char tmpbuf[256] = "";
@@ -166,43 +179,84 @@ void Comms::processCommand() {
                 lightOff();
             }
             break;
+
+        // Light mode
+        case 'M':
+            light_mode = buffer[1] - '0' - 1;
+            switch (light_mode) {
+              case 0:
+                lightStrip->ActivePattern = NONE;
+                lightWhite();
+                break;
+              case 1:
+                lightStrip->ActivePattern = RAINBOW_CYCLE;
+                lightStrip->Index = 0;
+                lightStrip->Interval = 5;
+                lightStrip->TotalSteps = 255;
+                lightStrip->Direction = FORWARD;
+                break;
+              case 2:
+                lightStrip->ActivePattern = THEATER_CHASE;
+                lightStrip->Index = 0;
+                lightStrip->Interval = 100;
+                lightStrip->TotalSteps = lightStrip->numPixels();
+                lightStrip->Color1 = lightStrip->Color(255, 0, 0);
+                lightStrip->Color2 = lightStrip->Color(0, 255, 0);
+                lightStrip->Direction = FORWARD;
+                break;
+              case 3:
+                lightStrip->ActivePattern = SCANNER;
+                lightStrip->Index = 0;
+                lightStrip->Interval = 10;
+                lightStrip->TotalSteps = (lightStrip->numPixels() - 1) * 2;
+                lightStrip->Color1 = lightStrip->Color(0, 0, 255);
+                break;
+              case 4:
+                  lightStrip->ActivePattern = FADE;
+                  lightStrip->Index = 0;
+                  lightStrip->Interval = 5;
+                  lightStrip->TotalSteps = 255;
+                  lightStrip->Color1 = lightStrip->Color(0, 0, 255);
+                  lightStrip->Color1 = lightStrip->Color(255, 0, 0);
+                  break;
+            }
+            break;
+
     }
     resetBuffer();
 }
 
 
 void Comms::lightOff() {
-    for(int i = 0; i < LEDS; i++) {
-        lightStrip->setPixelColor(i, lightStrip->Color(0, 0, 0));
-    }
-    lightStrip->show();
+    lightStrip->FullOff();
 }
 
 void Comms::lightWhite() {
-    for(int i = 0; i < LEDS; i++) {
-        lightStrip->setPixelColor(i, lightStrip->Color(255, 255, 255));
-    }
-    lightStrip->show();
+  lightStrip->FullWhite();
 }
 
 void Comms::reportAirTemperature() {
-    sensors_event_t event;
-    airSensor->temperature().getEvent(&event);
-    if (!isnan(event.temperature)) {
-        Serial.print("$A");
-        Serial.print(event.temperature);
-        Serial.print("#");
-    }
+    Serial.print("$A");
+    Serial.print(airSensor->readTemperature());
+    Serial.print("#");
 }
 
 void Comms::reportAirHumidity() {
-    sensors_event_t event;
-    airSensor->humidity().getEvent(&event);
-    if (!isnan(event.relative_humidity)) {
-        Serial.print("$H");
-        Serial.print(event.relative_humidity);
-        Serial.print("#");
-    }
+  Serial.print("$H");
+  Serial.print(airSensor->readHumidity());
+  Serial.print("#");
+}
+
+void Comms::reportAirPressure() {
+  Serial.print("$P");
+  Serial.print(airSensor->readPressure() / 100.0F);
+  Serial.print("#");
+}
+
+void Comms::reportAltitude() {
+  Serial.print("$G");
+  Serial.print(airSensor->readAltitude(SEALEVELPRESSURE_HPA));
+  Serial.print("#");
 }
 
 void Comms::reportWaterTemperature() {
@@ -244,11 +298,14 @@ void Comms::relayOff(byte relay) {
 
 void Comms::setupWiFi() {
     delay(250);
+    WiFi.mode(WIFI_STA);
     WiFi.begin(wifi_ssid, wifi_password);
 
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
     }
+    delay(50);
+    digitalWrite(COMM_LED, HIGH);
     mqttClient = new PubSubClient(espClient);
     mqttClient->setServer(mqtt_server, 1883);
     mqttClient->setCallback(mqttCallback);
@@ -266,7 +323,8 @@ void Comms::reconnect() {
             mqttClient->subscribe(filter_set_topic);
             mqttClient->publish(filter_topic, "0", true);
             mqttClient->subscribe(light_brightness_set_topic);
-            digitalWrite(COMM_LED, HIGH);
+            mqttClient->subscribe(light_mode_topic);
+            digitalWrite(MQTT_LED, HIGH);
         } else {
             delay(3000);
         }
@@ -291,6 +349,12 @@ void Comms::processData() {
         case 'H':       // Read air humidity
             handleAirHumidity(buffer);
             break;
+        case 'P':       // Read air pressure
+            handleAirPressure(buffer);
+            break;
+        case 'G':       // Read altitude
+            handleAltitude(buffer);
+            break;
     }
     resetBuffer();
 }
@@ -307,8 +371,16 @@ void Comms::getAirHumidity() {
     Serial.print("@H#");
 }
 
+void Comms::getAirPressure() {
+    Serial.print("@P#");
+}
+
 void Comms::getWaterTemperature() {
     Serial.print("@W#");
+}
+
+void Comms::getAltitude() {
+    Serial.print("@G#");
 }
 
 void Comms::handleAirTemperature(char *buf) {
@@ -319,8 +391,16 @@ void Comms::handleAirHumidity(char *buf) {
     mqttClient->publish(ahum_topic, buf, true);
 }
 
+void Comms::handleAirPressure(char *buf) {
+    mqttClient->publish(apres_topic, buf, true);
+}
+
 void Comms::handleWaterTemperature(char *buf) {
     mqttClient->publish(wtemp_topic, buf, true);
+}
+
+void Comms::handleAltitude(char *buf) {
+    mqttClient->publish(alt_topic, buf, true);
 }
 
 void Comms::setPoolFilter(bool state) {
