@@ -78,6 +78,7 @@ public:
 #ifdef CONTROL_BOARD
     void lightOff();
     void lightWhite();
+    void PatternComplete();
 #endif
 
 #ifdef COMM_BOARD
@@ -123,7 +124,6 @@ private:
     void reportWaterTemperature();
 
     void setLightMode(int mode);
-
     void resetStates();
 #endif
 
@@ -142,6 +142,12 @@ private:
 #endif
 };
 
-void mqttCallback(char *topic, byte *payload, unsigned int length);
+#ifdef COMM_BOARD
+  void mqttCallback(char *topic, byte *payload, unsigned int length);
+#endif
+
+#ifdef CONTROL_BOARD
+  void CycleComplete();
+#endif
 
 #endif // comms.hpp

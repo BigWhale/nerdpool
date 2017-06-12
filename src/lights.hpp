@@ -33,7 +33,7 @@ class NeoPatterns : public Adafruit_NeoPixel
 
     void FullWhite();
     void FullOff();
-    
+
     void RainbowCycle(uint8_t interval, direction dir);
     void RainbowCycleUpdate();
     void TheaterChase(uint32_t color1, uint32_t color2, uint8_t interval, direction dir);

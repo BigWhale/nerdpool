@@ -125,3 +125,9 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
     }
 }
 #endif
+
+#ifdef CONTROL_BOARD
+void CycleComplete() {
+  commRelay->PatternComplete();
+}
+#endif

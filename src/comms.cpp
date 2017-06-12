@@ -26,7 +26,7 @@ Comms::Comms() {
     airSensor = new Adafruit_BME280;
     oneWire = new OneWire(WATERPIN);
     waterSensor = new DallasTemperature(oneWire);
-    lightStrip = new NeoPatterns(LEDS, LIGHTPIN, NEO_GRB + NEO_KHZ800, NULL);
+    lightStrip = new NeoPatterns(LEDS, LIGHTPIN, NEO_GRB + NEO_KHZ800, &CycleComplete);
 
     airSensor->begin();
     waterSensor->begin();
@@ -166,8 +166,7 @@ void Comms::processCommand() {
         // Lights
         case 'L':                           // Light mode control
             if (buffer[1] == 'W') {         // Turn on full white
-                lightStrip->ActivePattern = NONE;
-                lightWhite();
+                lightStrip->FullWhite();
             } else if (buffer[1] == 'B') {  // Set brigthness
                 char tmpbuf[256] = "";
                 int brightness = 0;
@@ -176,7 +175,7 @@ void Comms::processCommand() {
                 lightStrip->setBrightness(brightness);
                 lightStrip->show();
             } else if (buffer[1] == 'X') {  // Turn off all lights
-                lightOff();
+                lightStrip->FullOff();
             }
             break;
 
@@ -185,8 +184,7 @@ void Comms::processCommand() {
             light_mode = buffer[1] - '0' - 1;
             switch (light_mode) {
               case 0:
-                lightStrip->ActivePattern = NONE;
-                lightWhite();
+                lightStrip->FullWhite();
                 break;
               case 1:
                 lightStrip->ActivePattern = RAINBOW_CYCLE;
@@ -200,8 +198,8 @@ void Comms::processCommand() {
                 lightStrip->Index = 0;
                 lightStrip->Interval = 100;
                 lightStrip->TotalSteps = lightStrip->numPixels();
-                lightStrip->Color1 = lightStrip->Color(255, 0, 0);
-                lightStrip->Color2 = lightStrip->Color(0, 255, 0);
+                lightStrip->Color1 = lightStrip->Color(0, 255, 0);
+                lightStrip->Color2 = lightStrip->Color(255, 0, 0);
                 lightStrip->Direction = FORWARD;
                 break;
               case 3:
@@ -224,15 +222,6 @@ void Comms::processCommand() {
 
     }
     resetBuffer();
-}
-
-
-void Comms::lightOff() {
-    lightStrip->FullOff();
-}
-
-void Comms::lightWhite() {
-  lightStrip->FullWhite();
 }
 
 void Comms::reportAirTemperature() {
@@ -282,6 +271,15 @@ void Comms::relayOn(byte relay) {
 void Comms::relayOff(byte relay) {
     digitalWrite(relays[relay], LOW);
 }
+
+void Comms::PatternComplete() {
+  if (lightStrip->ActivePattern == SCANNER) {
+      lightStrip->Color1 = lightStrip->Wheel(random(255));
+  } else if (lightStrip->ActivePattern == FADE) {
+      lightStrip->Reverse();
+  }
+}
+
 #endif
 
 
