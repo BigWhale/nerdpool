@@ -40,27 +40,27 @@ void loop() {
     }
     commRelay->loop();
 
-    if (nowTime - airTime > 1000 * 60) {
+    if (nowTime - airTime > 1000 * 600) {
         airTime = nowTime;
         commRelay->getAirTemperature();
     }
 
-    if (nowTime - pressTime > 1000 * 61) {
+    if (nowTime - pressTime > 1000 * 602) {
         pressTime = nowTime;
         commRelay->getAirPressure();
     }
 
-    if (nowTime - waterTime > 1000 * 62) {
+    if (nowTime - waterTime > 1000 * 604) {
         waterTime = nowTime;
         commRelay->getWaterTemperature();
     }
 
-    if (nowTime - humTime > 1000 * 63) {
+    if (nowTime - humTime > 1000 * 606) {
         humTime = nowTime;
         commRelay->getAirHumidity();
     }
 
-    if (nowTime - altTime > 1000 * 64) {
+    if (nowTime - altTime > 1000 * 608) {
         altTime = nowTime;
         commRelay->getAltitude();
     }

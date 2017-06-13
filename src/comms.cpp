@@ -51,9 +51,11 @@ Comms::Comms() {
 }
 
 void Comms::readCommand() {
+  #ifdef CONTROL_BOARD
   if (lightStrip->ActivePattern != NONE) {
     lightStrip->Update();
   }
+  #endif
     while (Serial.available() > 0) {
         unsigned char inByte = Serial.read();
 
@@ -71,7 +73,6 @@ void Comms::readCommand() {
         }
 #endif
 #ifdef COMM_BOARD
-        lightStrip->Update();
         if (!inData && inByte == SOD) {
             inData = true;
             continue;
