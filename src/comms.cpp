@@ -32,6 +32,7 @@ Comms::Comms() {
     waterSensor->begin();
 
     lightStrip->begin();
+    lightStrip->ActivePattern = NONE;
     lightStrip->show();
 
     relays[0] = RELAY0PIN;
@@ -50,9 +51,9 @@ Comms::Comms() {
 }
 
 void Comms::readCommand() {
-#ifdef CONTROL_BOARD
+  if (lightStrip->ActivePattern != NONE) {
     lightStrip->Update();
-#endif
+  }
     while (Serial.available() > 0) {
         unsigned char inByte = Serial.read();
 
@@ -70,6 +71,7 @@ void Comms::readCommand() {
         }
 #endif
 #ifdef COMM_BOARD
+        lightStrip->Update();
         if (!inData && inByte == SOD) {
             inData = true;
             continue;
@@ -121,17 +123,16 @@ void Comms::resetStates() {
 void Comms::processCommand() {
     int relay;
     int light_mode;
-    bool state;
     switch (buffer[0]) {
-        // Relay commands
-        case 'R':       // Report relay state
-            relay = buffer[1] - '0' - 1;
-            state = reportRelayState(relay);
-            break;
-        case 'T':       // Toggle relay state
-            relay = buffer[1] - '0' - 1;
-            state = toggleRelay(relay);
-            break;
+        // // Relay commands
+        // case 'R':       // Report relay state
+        //     relay = buffer[1] - '0' - 1;
+        //     state = reportRelayState(relay);
+        //     break;
+        // case 'T':       // Toggle relay state
+        //     relay = buffer[1] - '0' - 1;
+        //     state = toggleRelay(relay);
+        //     break;
         case 'N':       // Close relay - Turn on
             relay = buffer[1] - '0' - 1;
             relayOn(relay);
@@ -166,16 +167,9 @@ void Comms::processCommand() {
         // Lights
         case 'L':                           // Light mode control
             if (buffer[1] == 'W') {         // Turn on full white
-                lightStrip->FullWhite();
-            } else if (buffer[1] == 'B') {  // Set brigthness
-                char tmpbuf[256] = "";
-                int brightness = 0;
-                memcpy(tmpbuf, buffer + 2, strlen(buffer) - 2);
-                brightness = atoi(tmpbuf);
-                lightStrip->setBrightness(brightness);
-                lightStrip->show();
+                lightStrip->OnOff(ON);
             } else if (buffer[1] == 'X') {  // Turn off all lights
-                lightStrip->FullOff();
+                lightStrip->OnOff(OFF);
             }
             break;
 
@@ -184,7 +178,7 @@ void Comms::processCommand() {
             light_mode = buffer[1] - '0' - 1;
             switch (light_mode) {
               case 0:
-                lightStrip->FullWhite();
+                lightStrip->OnOff(ON);
                 break;
               case 1:
                 lightStrip->ActivePattern = RAINBOW_CYCLE;
@@ -214,8 +208,8 @@ void Comms::processCommand() {
                   lightStrip->Index = 0;
                   lightStrip->Interval = 5;
                   lightStrip->TotalSteps = 255;
-                  lightStrip->Color1 = lightStrip->Color(0, 0, 255);
-                  lightStrip->Color1 = lightStrip->Color(255, 0, 0);
+                  lightStrip->Color1 = lightStrip->Color(0, 255, 0);
+                  lightStrip->Color2 = lightStrip->Color(255, 0, 0);
                   break;
             }
             break;
@@ -253,15 +247,6 @@ void Comms::reportWaterTemperature() {
     Serial.print("$W");
     Serial.print(waterSensor->getTempCByIndex(0));
     Serial.print("#");
-}
-
-int Comms::reportRelayState(byte relay) {
-    return digitalRead(relays[relay]);
-}
-
-int Comms::toggleRelay(byte relay) {
-    digitalWrite(relays[relay], !digitalRead(relays[relay]));
-    return digitalRead(relays[relay]);
 }
 
 void Comms::relayOn(byte relay) {
@@ -401,11 +386,4 @@ void Comms::handleAltitude(char *buf) {
     mqttClient->publish(alt_topic, buf, true);
 }
 
-void Comms::setPoolFilter(bool state) {
-
-}
-
-void Comms::setPoolLight(bool state) {
-
-}
 #endif

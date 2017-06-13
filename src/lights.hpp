@@ -4,7 +4,7 @@
 #include <Adafruit_NeoPixel.h>
 
 // Pattern types supported:
-enum  pattern { NONE, RAINBOW_CYCLE, THEATER_CHASE, COLOR_WIPE, SCANNER, FADE };
+enum  pattern { NONE, RAINBOW_CYCLE, THEATER_CHASE, SCANNER, FADE };
 // Patern directions supported:
 enum  direction { FORWARD, REVERSE };
 
@@ -31,15 +31,12 @@ class NeoPatterns : public Adafruit_NeoPixel
     void Increment();
     void Reverse();
 
-    void FullWhite();
-    void FullOff();
+    void OnOff(int state);
 
     void RainbowCycle(uint8_t interval, direction dir);
     void RainbowCycleUpdate();
     void TheaterChase(uint32_t color1, uint32_t color2, uint8_t interval, direction dir);
     void TheaterChaseUpdate();
-    void ColorWipe(uint32_t color, uint8_t interval, direction dir);
-    void ColorWipeUpdate();
     void Scanner(uint32_t color1, uint8_t interval);
     void ScannerUpdate();
     void Fade(uint32_t color1, uint32_t color2, uint16_t steps, uint8_t interval, direction dir);

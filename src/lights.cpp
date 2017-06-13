@@ -21,9 +21,6 @@ void NeoPatterns::Update()
             case THEATER_CHASE:
                 TheaterChaseUpdate();
                 break;
-            case COLOR_WIPE:
-                ColorWipeUpdate();
-                break;
             case SCANNER:
                 ScannerUpdate();
                 break;
@@ -80,19 +77,15 @@ void NeoPatterns::Reverse()
     }
 }
 
-void NeoPatterns::FullWhite() {
+void NeoPatterns::OnOff(int state) {
   ActivePattern = NONE;
   for(unsigned int i = 0; i < numPixels(); i++)
   {
-      setPixelColor(i, 255, 255, 255);
-  }
-  show();
-}
-
-void NeoPatterns::FullOff() {
-  ActivePattern = NONE;
-  for (unsigned int i = 0; i < numPixels(); i++) {
-    setPixelColor(i, 0, 0, 0);
+      if (state == 1) {
+        setPixelColor(i, 255, 255, 255);
+      } else {
+        setPixelColor(i, 0, 0, 0);
+      }
   }
   show();
 }
@@ -143,25 +136,6 @@ void NeoPatterns::TheaterChaseUpdate()
             setPixelColor(i, Color2);
         }
     }
-    show();
-    Increment();
-}
-
-// Initialize for a ColorWipe
-void NeoPatterns::ColorWipe(uint32_t color, uint8_t interval, direction dir = FORWARD)
-{
-    ActivePattern = COLOR_WIPE;
-    Interval = interval;
-    TotalSteps = numPixels();
-    Color1 = color;
-    Index = 0;
-    Direction = dir;
-}
-
-// Update the Color Wipe Pattern
-void NeoPatterns::ColorWipeUpdate()
-{
-    setPixelColor(Index, Color1);
     show();
     Increment();
 }

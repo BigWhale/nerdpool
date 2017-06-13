@@ -39,7 +39,7 @@
 
 // Hardware stuff
 #define LIGHTPIN        6
-#define LEDS            295
+#define LEDS            294
 
 #define RELAY0PIN       7
 #define RELAY1PIN       8
@@ -61,8 +61,7 @@
 #define EOD '#'
 
 
-#define MAX_BUFFER 255
-#define MAX_COUNT 254
+#define MAX_BUFFER 30
 #define NUM_RELAYS 3
 
 #define COMM_LED D0
@@ -76,8 +75,6 @@ public:
     void readResponse();
     void resetBuffer();
 #ifdef CONTROL_BOARD
-    void lightOff();
-    void lightWhite();
     void PatternComplete();
 #endif
 
@@ -111,8 +108,8 @@ private:
     NeoPatterns *lightStrip;
     Adafruit_BME280 *airSensor;
 
-    int reportRelayState(byte relay);
-    int toggleRelay(byte relay);
+    // int reportRelayState(byte relay);
+    // int toggleRelay(byte relay);
     void relayOn(byte relay);
     void relayOff(byte relay);
 
