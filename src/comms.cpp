@@ -23,12 +23,21 @@
 
 Comms::Comms() {
 #ifdef CONTROL_BOARD
-    airSensor = new Adafruit_BME280;
+    airSensor = new BME280;
+    airSensor->settings.runMode = 3; // Normal mode
+    airSensor->settings.tStandby = 0;
+    airSensor->settings.filter = 0;
+    airSensor->settings.tempOverSample = 1;
+    airSensor->settings.pressOverSample = 1;
+    airSensor->settings.humidOverSample = 1;
+    airSensor->settings.commInterface = I2C_MODE;
+  	airSensor->settings.I2CAddress = 0x76;
+    airSensor->begin();
+
     oneWire = new OneWire(WATERPIN);
     waterSensor = new DallasTemperature(oneWire);
     lightStrip = new NeoPatterns(LEDS, LIGHTPIN, NEO_GRB + NEO_KHZ800, &CycleComplete);
 
-    airSensor->begin();
     waterSensor->begin();
 
     lightStrip->begin();
@@ -126,14 +135,6 @@ void Comms::processCommand() {
     int light_mode;
     switch (buffer[0]) {
         // // Relay commands
-        // case 'R':       // Report relay state
-        //     relay = buffer[1] - '0' - 1;
-        //     state = reportRelayState(relay);
-        //     break;
-        // case 'T':       // Toggle relay state
-        //     relay = buffer[1] - '0' - 1;
-        //     state = toggleRelay(relay);
-        //     break;
         case 'N':       // Close relay - Turn on
             relay = buffer[1] - '0' - 1;
             relayOn(relay);
@@ -221,25 +222,25 @@ void Comms::processCommand() {
 
 void Comms::reportAirTemperature() {
     Serial.print("$A");
-    Serial.print(airSensor->readTemperature());
+    Serial.print(airSensor->readTempC());
     Serial.print("#");
 }
 
 void Comms::reportAirHumidity() {
   Serial.print("$H");
-  Serial.print(airSensor->readHumidity());
+  Serial.print(airSensor->readFloatHumidity());
   Serial.print("#");
 }
 
 void Comms::reportAirPressure() {
   Serial.print("$P");
-  Serial.print(airSensor->readPressure() / 100.0F);
+  Serial.print(airSensor->readFloatPressure() / 100.0);
   Serial.print("#");
 }
 
 void Comms::reportAltitude() {
   Serial.print("$G");
-  Serial.print(airSensor->readAltitude(SEALEVELPRESSURE_HPA));
+  Serial.print(airSensor->readFloatAltitudeMeters());
   Serial.print("#");
 }
 

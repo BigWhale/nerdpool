@@ -5,7 +5,7 @@
     #include <OneWire.h>
     #include <DallasTemperature.h>
     #include <Adafruit_NeoPixel.h>
-    #include <Adafruit_BME280.h>
+    #include "SparkFunBME280.h"
     #include "lights.hpp"
 #endif
 
@@ -106,7 +106,7 @@ private:
     OneWire *oneWire;
     DallasTemperature *waterSensor;
     NeoPatterns *lightStrip;
-    Adafruit_BME280 *airSensor;
+    BME280 *airSensor;
 
     // int reportRelayState(byte relay);
     // int toggleRelay(byte relay);

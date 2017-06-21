@@ -30,10 +30,26 @@ long waterTime = 0;
 long humTime = 0;
 long pressTime = 0;
 long altTime = 0;
+long start = 1;
 
 void loop() {
     commRelay->readCommand();
 #ifdef COMM_BOARD
+    // If we're just starting, get sensor readings.
+    if (start == 1) {
+      delay(150);
+      commRelay->getAirTemperature();
+      delay(150);
+      commRelay->getAirPressure();
+      delay(150);
+      commRelay->getWaterTemperature();
+      delay(150);
+      commRelay->getAltitude();
+      delay(150);
+      commRelay->getAirHumidity();
+      delay(150);
+      start = 0;
+    }
     long nowTime = millis();
     if (!commRelay->isConnected()) {
         commRelay->reconnect();
