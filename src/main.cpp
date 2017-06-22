@@ -35,6 +35,12 @@ long start = 1;
 void loop() {
     commRelay->readCommand();
 #ifdef COMM_BOARD
+    long nowTime = millis();
+    if (!commRelay->isConnected()) {
+        commRelay->reconnect();
+    }
+    commRelay->loop();
+
     // If we're just starting, get sensor readings.
     if (start == 1) {
       delay(150);
@@ -50,33 +56,28 @@ void loop() {
       delay(150);
       start = 0;
     }
-    long nowTime = millis();
-    if (!commRelay->isConnected()) {
-        commRelay->reconnect();
-    }
-    commRelay->loop();
 
     if (nowTime - airTime > 1000 * 600) {
         airTime = nowTime;
         commRelay->getAirTemperature();
     }
 
-    if (nowTime - pressTime > 1000 * 602) {
+    if (nowTime - pressTime > 1000 * 601) {
         pressTime = nowTime;
         commRelay->getAirPressure();
     }
 
-    if (nowTime - waterTime > 1000 * 604) {
+    if (nowTime - waterTime > 1000 * 602) {
         waterTime = nowTime;
         commRelay->getWaterTemperature();
     }
 
-    if (nowTime - humTime > 1000 * 606) {
+    if (nowTime - humTime > 1000 * 603) {
         humTime = nowTime;
         commRelay->getAirHumidity();
     }
 
-    if (nowTime - altTime > 1000 * 608) {
+    if (nowTime - altTime > 1000 * 604) {
         altTime = nowTime;
         commRelay->getAltitude();
     }

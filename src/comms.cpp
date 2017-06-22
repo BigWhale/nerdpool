@@ -24,7 +24,7 @@
 Comms::Comms() {
 #ifdef CONTROL_BOARD
     airSensor = new BME280;
-    airSensor->settings.runMode = 3; // Normal mode
+    airSensor->settings.runMode = 1; // Single mode
     airSensor->settings.tStandby = 0;
     airSensor->settings.filter = 0;
     airSensor->settings.tempOverSample = 1;
@@ -221,24 +221,32 @@ void Comms::processCommand() {
 }
 
 void Comms::reportAirTemperature() {
+    airSensor->begin();
+    delay(50);
     Serial.print("$A");
     Serial.print(airSensor->readTempC());
     Serial.print("#");
 }
 
 void Comms::reportAirHumidity() {
+  airSensor->begin();
+  delay(50);
   Serial.print("$H");
   Serial.print(airSensor->readFloatHumidity());
   Serial.print("#");
 }
 
 void Comms::reportAirPressure() {
+  airSensor->begin();
+  delay(50);
   Serial.print("$P");
   Serial.print(airSensor->readFloatPressure() / 100.0);
   Serial.print("#");
 }
 
 void Comms::reportAltitude() {
+  airSensor->begin();
+  delay(50);
   Serial.print("$G");
   Serial.print(airSensor->readFloatAltitudeMeters());
   Serial.print("#");
