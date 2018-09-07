@@ -30,6 +30,8 @@ DeviceAddress waterSensorAddress;
 #define LED_BLUE    16
 #define LED_YELLOW  4
 
+int leds[5] = { LED_RED, LED_AMBER, LED_GREEN, LED_BLUE, LED_YELLOW};  
+
 /* Relays */
 #define RELAY_1 32
 #define RELAY_2 33
@@ -39,10 +41,10 @@ DeviceAddress waterSensorAddress;
 int relay[4] = {RELAY_1, RELAY_2, RELAY_3, RELAY_4};
 
 /* Wireless and MQTT */
-char ssid[] = "YOUR SSID";            // Change me!
-char pass[] = "YOUR WPA KEY";         // Change me!
-char mqttServer[] = "192.168.1.1";    // Probably change me!
+char ssid[] = "YOUR SSID";
+char pass[] = "YOUR WPA";
 int status = WL_IDLE_STATUS;
+char mqttServer[] = "192.168.1.1";
 
 WiFiClient espClient;
 PubSubClient client(mqttServer, 1883, callback, espClient);
@@ -56,55 +58,35 @@ void setup() {
 
   // Pin setup
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(LED_RED, OUTPUT);
-  pinMode(LED_AMBER, OUTPUT);
-  pinMode(LED_GREEN, OUTPUT);
-  pinMode(LED_BLUE, OUTPUT);
-  pinMode(LED_YELLOW, OUTPUT);
-
-  digitalWrite(RELAY_1, HIGH);
-  digitalWrite(RELAY_2, HIGH);
-  digitalWrite(RELAY_3, HIGH);
-  digitalWrite(RELAY_4, HIGH);
-  pinMode(RELAY_1, OUTPUT);
-  pinMode(RELAY_2, OUTPUT);
-  pinMode(RELAY_3, OUTPUT);
-  pinMode(RELAY_4, OUTPUT);
 
   // Set default LED states
-  digitalWrite(LED_BUILTIN, LOW);  // Builtin LED needs to be set to LOW
+  digitalWrite(LED_BUILTIN, HIGH);  // Builtin LED needs to be set to LOW to turn it off
+  for (int i = 0; i < 5; i++) {
+    digitalWrite(leds[i], LOW);
+    pinMode(leds[i], OUTPUT);
+  }
 
-  digitalWrite(LED_RED, HIGH);
-  delay(300);
-  digitalWrite(LED_RED, LOW);
-  digitalWrite(LED_AMBER, HIGH);
-  delay(300);
-  digitalWrite(LED_AMBER, LOW);
-  digitalWrite(LED_GREEN, HIGH);
-  delay(300);
-  digitalWrite(LED_GREEN, LOW);
-  digitalWrite(LED_BLUE, HIGH);
-  delay(300);
-  digitalWrite(LED_BLUE, LOW);
-  digitalWrite(LED_YELLOW, HIGH);
-  delay(300);
-  digitalWrite(LED_YELLOW, LOW);
+  // Initialize relays
+  for (int i = 0; i < 4; i++) {
+    digitalWrite(relay[i], HIGH);
+    pinMode(relay[i], OUTPUT);
+  }
+
+  flash_leds();
 
   // Set WIFI mode
-  delay(200);
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   delay(200);
 
   // Connect to WiFi
   while ( status != WL_CONNECTED) { 
-    Serial.print("Attempting to connect to WPA SSID: ");
-    Serial.println(ssid);
-    status = WiFi.begin(ssid, pass);  // Make actual connection
+    digitalWrite(LED_AMBER, HIGH);
+    digitalWrite(LED_RED, LOW);
+    status = WiFi.begin(ssid, pass);
     delay(10000);
   }
-  // Turn off status LED
-  digitalWrite(LED_BUILTIN, HIGH);
+  digitalWrite(LED_AMBER, LOW);
 
   // Star Wire protocol
   Wire.begin();
@@ -130,7 +112,10 @@ void loop() {
   char tmpStr[8];
 
   if (!client.connected()) {
+    digitalWrite(LED_YELLOW, HIGH);
     reconnect();
+    digitalWrite(LED_YELLOW, LOW);
+    digitalWrite(LED_GREEN, HIGH);
   }
   client.loop();
   
@@ -175,17 +160,6 @@ void callback(char* topic, byte* message, unsigned int length) {
   int val;
   int sw;
 
-  Serial.print("MSG: (");
-  Serial.print(topic);
-  Serial.print("): ");
-  String messageTemp;
-  
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)message[i]);
-    messageTemp += (char)message[i];
-  }
-  Serial.println();
-
   // Rudimentary validation. Switch topics must be named as sw_1, sw_2, ....
   if ((strncmp(topic, "sw_", 3) == 0 && length == 1) ) {
 
@@ -214,9 +188,7 @@ void callback(char* topic, byte* message, unsigned int length) {
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
     if (client.connect("NerdPool")) {
-      Serial.println("connected");
       // One switch, one topic. This way HA will retain all
       // the states if ESP32 is disconnected.
       // These also need to be configured in HA.
@@ -224,6 +196,8 @@ void reconnect() {
       client.subscribe("sw_2");
       client.subscribe("sw_3");
       client.subscribe("sw_4");
+      digitalWrite(LED_GREEN, HIGH);
+      digitalWrite(LED_RED, LOW);
     } else {
       Serial.print("ERR= ");
       Serial.print(client.state());
@@ -235,26 +209,10 @@ void reconnect() {
 }
 
 void flash_leds() {
-  Serial.println("Cycling leds");
-  int leds[5] = { LED_RED, LED_AMBER, LED_GREEN, LED_BLUE, LED_YELLOW};  
-
-  for (int r = 5; r > 0; r-- ) {
-    for (int i = 0; i < 5; i++) { digitalWrite(leds[i], HIGH); delay(100); }
-    for (int i = 0; i < 5; i++) { digitalWrite(leds[i], LOW); delay(100); }
-  }
-
-  for (int r = 5; r > 0; r-- ) {
-    for (int i = 0; i < 5; i++) {
-      if (i == 0 ) {
-        digitalWrite(leds[4], LOW);
-      } else {
-        digitalWrite(leds[i - 1], LOW);
-      }
-      digitalWrite(leds[i], HIGH);
-      delay(100);
-    }
-    digitalWrite(leds[4], LOW);
-  }
+  for (int i = 0; i < 5; i++) { digitalWrite(leds[i], HIGH); delay(150); }
+  delay(150);
+  for (int i = 4; i > 0; i--) { digitalWrite(leds[i], LOW); delay(150); }
+  delay(150);
 }
 
 void printAirValues() {
