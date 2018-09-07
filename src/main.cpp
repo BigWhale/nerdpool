@@ -1,150 +1,286 @@
-#include <stdlib.h>
+#include <Arduino.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
+#include <WiFi.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <PubSubClient.h>
 
-#include "Arduino.h"
-#include "comms.hpp"
 #include "main.hpp"
 
-#ifdef COMM_BOARD
-#include <ESP8266WiFi.h>
-#include <PubSubClient.h>
-#endif
+/* Sensors stuff */
+Adafruit_BME280 airSensor; // Use I2C by default
+#define SEALEVELPRESSURE_HPA (1013.25)
+#define BME_ADDRESS 0x76  // This is usually 0x76 or 0x77 it depends on the sensor
+#define BME_SDA 21  // Not really needed, just for the reference
+#define BME_SCL 22  // Not really needed, just for the reference
 
-Comms *commRelay;
+#define ONEWIRE_PIN 27
+OneWire oneWire(ONEWIRE_PIN);
+DallasTemperature waterSensor(&oneWire);
+DeviceAddress waterSensorAddress;
 
-uint32_t delayMS;
+/* LEDS */
+#define LED_BUILTIN 0
+#define LED_RED     18
+#define LED_AMBER   5
+#define LED_GREEN   17
+#define LED_BLUE    16
+#define LED_YELLOW  4
+
+/* Relays */
+#define RELAY_1 32
+#define RELAY_2 33
+#define RELAY_3 25
+#define RELAY_4 26
+
+int relay[4] = {RELAY_1, RELAY_2, RELAY_3, RELAY_4};
+
+/* Wireless and MQTT */
+char ssid[] = "YOUR SSID";            // Change me!
+char pass[] = "YOUR WPA KEY";         // Change me!
+char mqttServer[] = "192.168.1.1";    // Probably change me!
+int status = WL_IDLE_STATUS;
+
+WiFiClient espClient;
+PubSubClient client(mqttServer, 1883, callback, espClient);
+
+// Timekeeping
+long mqttPing = 0;
 
 void setup() {
-  #ifdef COMM_BOARD
-      pinMode(COMM_LED, OUTPUT);
-      pinMode(MQTT_LED, OUTPUT);
-      digitalWrite(COMM_LED, LOW);
-      digitalWrite(MQTT_LED, LOW);
-  #endif
-    Serial.begin(9600);
-    delay(50);
-    commRelay = new Comms();
+  Serial.begin(115200);
+  while(!Serial) {} // Wait
+
+  // Pin setup
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(LED_RED, OUTPUT);
+  pinMode(LED_AMBER, OUTPUT);
+  pinMode(LED_GREEN, OUTPUT);
+  pinMode(LED_BLUE, OUTPUT);
+  pinMode(LED_YELLOW, OUTPUT);
+
+  digitalWrite(RELAY_1, HIGH);
+  digitalWrite(RELAY_2, HIGH);
+  digitalWrite(RELAY_3, HIGH);
+  digitalWrite(RELAY_4, HIGH);
+  pinMode(RELAY_1, OUTPUT);
+  pinMode(RELAY_2, OUTPUT);
+  pinMode(RELAY_3, OUTPUT);
+  pinMode(RELAY_4, OUTPUT);
+
+  // Set default LED states
+  digitalWrite(LED_BUILTIN, LOW);  // Builtin LED needs to be set to LOW
+
+  digitalWrite(LED_RED, HIGH);
+  delay(300);
+  digitalWrite(LED_RED, LOW);
+  digitalWrite(LED_AMBER, HIGH);
+  delay(300);
+  digitalWrite(LED_AMBER, LOW);
+  digitalWrite(LED_GREEN, HIGH);
+  delay(300);
+  digitalWrite(LED_GREEN, LOW);
+  digitalWrite(LED_BLUE, HIGH);
+  delay(300);
+  digitalWrite(LED_BLUE, LOW);
+  digitalWrite(LED_YELLOW, HIGH);
+  delay(300);
+  digitalWrite(LED_YELLOW, LOW);
+
+  // Set WIFI mode
+  delay(200);
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(200);
+
+  // Connect to WiFi
+  while ( status != WL_CONNECTED) { 
+    Serial.print("Attempting to connect to WPA SSID: ");
+    Serial.println(ssid);
+    status = WiFi.begin(ssid, pass);  // Make actual connection
+    delay(10000);
+  }
+  // Turn off status LED
+  digitalWrite(LED_BUILTIN, HIGH);
+
+  // Star Wire protocol
+  Wire.begin();
+  while(!airSensor.begin(BME_ADDRESS)) {
+    Serial.println("Could not find BME280I2C sensor!");
+    delay(1000);
+  }
+  
+  waterSensor.begin();
+  Serial.print("Found ");
+  Serial.print(waterSensor.getDeviceCount(), DEC);
+  Serial.println(" sensor devices.");
+
+  if (!waterSensor.getAddress(waterSensorAddress, 0)) {
+    Serial.println("Unable to find address for water sensor."); 
+  }
 }
 
-long airTime = 0;
-long waterTime = 0;
-long humTime = 0;
-long pressTime = 0;
-long altTime = 0;
-long start = 1;
+float airTemp, waterTemp, airHumidity, airPressure;
 
-void loop() {
-    commRelay->readCommand();
-#ifdef COMM_BOARD
-    long nowTime = millis();
-    if (!commRelay->isConnected()) {
-        commRelay->reconnect();
-    }
-    commRelay->loop();
+void loop() {    
+  long now;
+  char tmpStr[8];
 
-    // If we're just starting, get sensor readings.
-    if (start == 1) {
-      delay(150);
-      commRelay->getAirTemperature();
-      delay(150);
-      commRelay->getAirPressure();
-      delay(150);
-      commRelay->getWaterTemperature();
-      delay(150);
-      commRelay->getAltitude();
-      delay(150);
-      commRelay->getAirHumidity();
-      delay(150);
-      start = 0;
-    }
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+  
+  now = millis();
 
-    if (nowTime - airTime > 1000 * 600) {
-        airTime = nowTime;
-        commRelay->getAirTemperature();
-    }
-
-    if (nowTime - pressTime > 1000 * 601) {
-        pressTime = nowTime;
-        commRelay->getAirPressure();
-    }
-
-    if (nowTime - waterTime > 1000 * 602) {
-        waterTime = nowTime;
-        commRelay->getWaterTemperature();
-    }
-
-    if (nowTime - humTime > 1000 * 603) {
-        humTime = nowTime;
-        commRelay->getAirHumidity();
-    }
-
-    if (nowTime - altTime > 1000 * 604) {
-        altTime = nowTime;
-        commRelay->getAltitude();
-    }
-
-#endif
+  if ( now - mqttPing > 5000 ) {
+    mqttPing = now;
+    airTemp = airSensor.readTemperature();
+    airPressure = airSensor.readPressure() / 100.0F;
+    airHumidity = airSensor.readHumidity();
+    waterSensor.requestTemperatures();
+    waterTemp = waterSensor.getTempC(waterSensorAddress);
+   
+    dtostrf(airTemp, 1, 2, tmpStr);
+    Serial.print("Publishing: ");
+    Serial.println(tmpStr);
+    client.publish("air_temperature", tmpStr);
+   
+    dtostrf(waterTemp, 1, 2, tmpStr);
+    Serial.print("Publishing: ");
+    Serial.println(tmpStr);
+    client.publish("water_temperature", tmpStr);
+   
+    dtostrf(airHumidity, 1, 2, tmpStr);
+    Serial.print("Publishing: ");
+    Serial.println(tmpStr);
+    client.publish("air_humidity", tmpStr);
+   
+    dtostrf(airPressure, 1, 2, tmpStr);
+    Serial.print("Publishing: ");
+    Serial.println(tmpStr);
+    client.publish("air_pressure", tmpStr);
+   
+    printAirValues();
+    printWaterValues();
+  }
 }
 
-#ifdef COMM_BOARD
-void mqttCallback(char *topic, byte *payload, unsigned int length) {
-    char c_on[] = "1";
-    char c_off[] = "0";
-    if (!strncmp(topic, filter_set_topic, strlen(filter_set_topic))) {
-        if ((char)payload[0] == '1') {
-            Serial.print("@N2#");
-            commRelay->mqttPublish(filter_topic, c_on);
-        } else {
-            Serial.print("@F2#");
-            commRelay->mqttPublish(filter_topic, c_off);
-        }
+void callback(char* topic, byte* message, unsigned int length) {
+  String ssw;
+  String sval;
+  int val;
+  int sw;
+
+  Serial.print("MSG: (");
+  Serial.print(topic);
+  Serial.print("): ");
+  String messageTemp;
+  
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)message[i]);
+    messageTemp += (char)message[i];
+  }
+  Serial.println();
+
+  // Rudimentary validation. Switch topics must be named as sw_1, sw_2, ....
+  if ((strncmp(topic, "sw_", 3) == 0 && length == 1) ) {
+
+    ssw = (char)topic[3];
+    sw = ssw.toInt();
+
+    // toInt() will return 0 if it fails conversion. Switches start at 1.
+    if (sw == 0) {
+      return;
     }
 
-    if (!strncmp(topic, light_set_topic, strlen(light_set_topic))) {
-        if ((char)payload[0] == '1') {
-            Serial.print("@N1#");
-            delay(100);
-            Serial.print("@LW#");
-            commRelay->mqttPublish(light_topic, c_on);
-        } else {
-            Serial.print("@F1#");
-            delay(100);
-            Serial.print("@LX#");
-            commRelay->mqttPublish(light_topic, c_off);
-        }
+    sval = (char)message[0];
+    val = sval.toInt();
+    if (val > 0) {
+      Serial.print("Turning on: ");
+      Serial.println(sw - 1);
+      digitalWrite(relay[sw - 1], LOW);
+    } else {
+      Serial.print("Turning off: ");
+      Serial.println(sw - 1);
+      digitalWrite(relay[sw - 1], HIGH);
     }
+  }
+}
 
-    if (!strncmp(topic, light_brightness_set_topic, strlen(light_brightness_set_topic))) {
-        Serial.print("@LB");
-        char tmp[10];
-        memcpy(tmp, payload, length);
-        tmp[length] = '\0';
-        Serial.print(tmp);
-        Serial.print("#");
-        commRelay->mqttPublish(light_brightness_topic, tmp);
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    if (client.connect("NerdPool")) {
+      Serial.println("connected");
+      // One switch, one topic. This way HA will retain all
+      // the states if ESP32 is disconnected.
+      // These also need to be configured in HA.
+      client.subscribe("sw_1");
+      client.subscribe("sw_2");
+      client.subscribe("sw_3");
+      client.subscribe("sw_4");
+    } else {
+      Serial.print("ERR= ");
+      Serial.print(client.state());
+      Serial.println(" -- retrying.");
+      // Wait 5 seconds before retrying
+      delay(5000);
     }
+  }
+}
 
-    if (!strncmp(topic, light_mode_topic, strlen(light_mode_topic))) {
-      char tmp[150];
-      memcpy(tmp, payload, length);
-      tmp[length] = '\0';
+void flash_leds() {
+  Serial.println("Cycling leds");
+  int leds[5] = { LED_RED, LED_AMBER, LED_GREEN, LED_BLUE, LED_YELLOW};  
 
-      if (strcmp(tmp, "White") == 0) {
-        Serial.print("@M1#");
-      } else if (strcmp(tmp, "Rainbow") == 0) {
-        Serial.print("@M2#");
-      } else if (strcmp(tmp, "Theater") == 0) {
-        Serial.print("@M3#");
-      } else if (strcmp(tmp, "Scanner") == 0) {
-        Serial.print("@M4#");
-      } else if (strcmp(tmp, "Fade") == 0) {
-        Serial.print("@M5#");
+  for (int r = 5; r > 0; r-- ) {
+    for (int i = 0; i < 5; i++) { digitalWrite(leds[i], HIGH); delay(100); }
+    for (int i = 0; i < 5; i++) { digitalWrite(leds[i], LOW); delay(100); }
+  }
+
+  for (int r = 5; r > 0; r-- ) {
+    for (int i = 0; i < 5; i++) {
+      if (i == 0 ) {
+        digitalWrite(leds[4], LOW);
+      } else {
+        digitalWrite(leds[i - 1], LOW);
       }
+      digitalWrite(leds[i], HIGH);
+      delay(100);
     }
+    digitalWrite(leds[4], LOW);
+  }
 }
-#endif
 
-#ifdef CONTROL_BOARD
-void CycleComplete() {
-  commRelay->PatternComplete();
+void printAirValues() {
+    Serial.print("Temperature = ");
+    Serial.print(airSensor.readTemperature());
+    Serial.println(" *C");
+
+    Serial.print("Pressure = ");
+
+    Serial.print(airSensor.readPressure() / 100.0F);
+    Serial.println(" hPa");
+
+    Serial.print("Approx. Altitude = ");
+    Serial.print(airSensor.readAltitude(SEALEVELPRESSURE_HPA));
+    Serial.println(" m");
+
+    Serial.print("Humidity = ");
+    Serial.print(airSensor.readHumidity());
+    Serial.println(" %");
 }
-#endif
+
+void printWaterValues()
+{
+  waterSensor.requestTemperatures();
+  float tempC = waterSensor.getTempC(waterSensorAddress);
+  Serial.print("Water temperature = ");
+  Serial.print(tempC);
+  Serial.println(" *C");
+}

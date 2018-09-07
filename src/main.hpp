@@ -1,10 +1,10 @@
-#ifndef main_hpp
-#define main_hpp
-
-#ifdef COMM_BOARD
-    #include <ESP8266WiFi.h>
-    #include <PubSubClient.h>
-    void mqttCallback(char *topic, byte *payload, unsigned int length);
-#endif
-
+#ifndef MAIN_HPP
+#define MAIN_HPP
+void flash_leds();
+void printAirValues();
+void printWaterValues();
+void printCurrentNet();
+void printWifiData();
+void callback(char* topic, byte* message, unsigned int length);
+void reconnect();
 #endif

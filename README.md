@@ -1,7 +1,7 @@
 # NerdPool v0.01
 
 Having a swimming pool in the back yard is a constant struggle. Here's where
-Arduino and handful of electronics come in.
+a handful of electronics come in.
 
 
 ## The mission
@@ -9,7 +9,6 @@ Arduino and handful of electronics come in.
 - Automate water pump and filtration
 - Measure water parameters
 - Measure air temperature
-- Take care of lights
 - Give it an IP address - IoT **everything**
 
 
@@ -18,71 +17,119 @@ Arduino and handful of electronics come in.
 - Basics
  - Swimming pool
  - Filter
- - Light bulb
 - Computers and micro controllers
- - Arduino Nano board
- - ESP8266 ESP-12E board
+ - ESP32 board
  - Raspberry Pi 2 or better (RPi 1 might also work?)
 - Electronics
- - DHT22 Temperature and humidty sensor
+ - BME280 Temperature and humidty sensor
  - DS18B20 Waterproof sensor
  - Keyes 5V one channel relays
- - WS2812B 5050 RGB LED strip
- - a handful of resistors, capacitors, diodes, ...
-- A decent power supply to power that LED strip
 
 
 ## Software
 
-PlatformIO was used for building all the software that is running on Nano and
-on ESP board. Apart from the standard Arduino library also these libraries
+PlatformIO was used for building all the software that is running on an ESP
+board. Apart from the standard Arduino library also these libraries
 were used:
 
-- Adafruit Neopixel library (`pio lib install 28`)
-- Adafruit unified sensors (`pio lib install 18`)
+- Adafruit unified sensors (`pio lib install 31`)
+- Adafruit BME280 Library (`pio lib install 166`)
 - PubSubClient MQTT messaging library (`pio lib install 86`)
+- OneWire (`pio lib install 1`)
 - DallasTemperature library for DS18B20 sensor (`pio lib install 54`)
 
-Raspberry Pi 2 running [Home Assistant](https://home-assistant.io/) where all
-the data is sent to.
+In my case RPi 3 is running [Home Assistant](https://www.home-assistant.io/hassio/) where all the data is sent to. 
 
 
 ## How it works
 
-Arduino Nano is used to control all the relays, switches and read the sensors.
-It will listen on I2C for incoming commands from ESP-12E board and report back
-the sensor readings.
+ESP32 is used to control all the relays, and read the sensors. After
+connection to a WiFi it will subscribe to a few topics on the MQTT server
+and it will use a few topics to publish data on it.
 
-ESP-12E connects to the network and talks with RPi and Home Assistant. Commands
-received on ESP are sent over MQTT.
-
-Finally, Home Assistant will display data collected and the state of relays.
-
-A few physical hard switches will be installed by the pool, so that you will be
-able to control the lights without getting out of the pool.
+Home Assistant will display data collected and the state of relays.
 
 
 ## Compiling & Upload
 
-- Install [Atom](https://atom.io)
+- Install [Atom](https://atom.io) or [Visual Studio Code](https://code.visualstudio.com/)
 - Install the `PlatformIO` plugin
-- Start atom and open NerdPool project
+- Start the IDE and open NerdPool project
 - Open PlatformIO console and install all the prerequisites
 - Hit build and cross your fingers
 
-Upload is a bit trickier. Right now PlatformIO ini file assumes that both of
-the boards are connected to the computer via USB. Edit the `platformio.ini`
-and change the env values for each board. Then simply hitting the upload button
-should work.
-
-If you can't have two boards connected at the same time, then comment out one
-of the env sections for each board. You will have to run compile & upload
-for each board separately.
+Upload should work with any ESP32 dev breakout board.
 
 
 ## Home Assistant Configuration
 
-TBD sometime in the future. :/
+Switch example for configuration.yaml:
+
+```
+mqtt:
+  broker: core-mosquitto
+  discovery: true
+switch:
+  - platform: mqtt
+    name: "Switch 1"
+    state_topic: "sw_1"
+    command_topic: "sw_1"
+    payload_on: "1"
+    payload_off: "0"
+    retain: true
+```
+
+To simplyfy things, until you have a plethora of switches, it is the
+easiest way to have one switch per MQTT topic. Switch names are hardcoded
+as sw_1, sw_2, etc. Payload is 1 for on and 0 for off.
+
+Sensor configuration:
+
+```
+  - platform: mqtt
+    name: Pool Air Temperature
+    state_topic: "air_temperature"
+    unit_of_measurement: '°C'
+  - platform: mqtt
+    name: Pool Air Humidity
+    state_topic: "air_humidity"
+    unit_of_measurement: '%'
+  - platform: mqtt
+    name: Pool Air Pressure
+    state_topic: "air_pressure"
+    unit_of_measurement: 'mbar'
+  - platform: mqtt
+    name: Pool Water Temperature
+    state_topic: "water_temperature"
+    unit_of_measurement: '°C'
+```
+Again, topics hardcoded which greatly simplifies publishing, values are
+just dumped out and HA will pick them up.
+
+
+## Circuit board & electronics
+
+Design is almost finished. Circuit board will include connectors for all
+relay switches, five LED connectors (currently not completely utilized) and
+four additional GPIO ports that will be configurable.
+
+Currently I am using a relay board that has 4 relays on it. That should
+be enough for most configurations with multiple pumps and lights. The
+'problem' with this relay board are inverted signal pins. When you pull
+the pin HIGH, the relay will disengage. When you pull pin LOW, the relay
+will engage. That's why you have to set relay pins to high before you
+set their mode to output.
+
+Support for Neopixel lightstrip was dropped, because my lightstrip is
+broken. ESP32 should be enough to control 5m strip without any trouble.
+When I fix the lightstrip I'll add it back.
+
+Circuit board is based on ESP32-WROOM-32 that comes with shielded chip and
+a PCB antenna.
+
+A lot of values are hardcoded in the source, I considered making them
+configurable but for now you are stuck with changing the source if you
+want to change the pin assignemnts.
 
 
 ## Bugs
@@ -96,3 +143,4 @@ It's a hobby pet project, I will probably tinker with it before the pool
 season. Then forget about it. Right now the only reason this exists are the
 [Webcamp SI](https://2017.webcamp.si) guys and girls that pushed me to rush
 everything. :)
+
